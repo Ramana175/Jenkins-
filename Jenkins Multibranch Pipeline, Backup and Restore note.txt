@@ -1,0 +1,447 @@
+# Jenkins Multibranch Pipeline, Backup and Restore
+
+## 1. Introduction
+
+In this practical, I learned:
+
+1. Jenkins Multibranch Pipeline.
+2. Jenkins Backup and Restore.
+3. Linux Bash shell scripting for backup automation.
+
+---
+
+# 2. Multibranch Pipeline
+
+## What is Multibranch Pipeline?
+
+A Multibranch Pipeline allows Jenkins to discover branches from a GitHub repository and create separate pipeline jobs for branches that contain the configured Jenkinsfile.
+
+My GitHub repository contains:
+
+- `main`
+- `development`
+
+### Pipeline Flow
+
+```text
+GitHub Repository
+       |
+       v
+Ramana175/Maven
+       |
+       +----------------+
+       |                |
+       v                v
+     main          development
+       |                |
+       v                v
+  Jenkinsfile       Jenkinsfile
+       |                |
+       v                v
+  Branch Job        Branch Job
+```
+
+## My Configuration
+
+| Setting | Value |
+|---|---|
+| Jenkins job | Maven-Multibranch |
+| Job type | Multibranch Pipeline |
+| Repository | Ramana175/Maven |
+| Branches | main, development |
+| Branch Source | GitHub |
+| Script Path | tomcat-web-application/Jenkinsfile-declerative |
+| API usage strategy | Throttle at/near rate limit |
+
+## How I Configured Multibranch Pipeline
+
+1. Opened Jenkins dashboard.
+2. Selected New Item.
+3. Entered `Maven-Multibranch`.
+4. Selected Multibranch Pipeline.
+5. Opened Branch Sources.
+6. Selected GitHub.
+7. Entered my GitHub repository details.
+8. Configured the Script Path:
+
+```text
+tomcat-web-application/Jenkinsfile-declerative
+```
+
+9. Saved the job.
+10. Selected **Scan Multibranch Pipeline Now**.
+
+## Practical Issue I Faced
+
+Initially, Jenkins found the Jenkinsfile in the `main` branch, but the `development` branch did not contain the configured Jenkinsfile.
+
+I added the Jenkinsfile to the `development` branch and ran the branch scan again.
+
+After scanning, Jenkins discovered both branches.
+
+## Branch Indexing Output
+
+```text
+Checking branch main
+  ‘tomcat-web-application/Jenkinsfile-declerative’ found
+  Met criteria
+  Scheduled build for branch: main
+
+Checking branch development
+  ‘tomcat-web-application/Jenkinsfile-declerative’ found
+  Met criteria
+  Scheduled build for branch: development
+
+2 branches were processed
+Finished branch indexing.
+Finished: SUCCESS
+```
+
+## How I Verified It
+
+1. Opened `Maven-Multibranch`.
+2. Checked the discovered branch jobs.
+3. Opened the `main` branch job.
+4. Checked Console Output.
+5. Opened the `development` branch job.
+6. Checked Console Output.
+7. Confirmed both builds completed successfully.
+
+## Important Concepts
+
+| Term | Meaning |
+|---|---|
+| Branch indexing | Jenkins scans the repository |
+| Branch Source | Defines the source repository |
+| Script Path | Location of the Jenkinsfile |
+| Branch job | Separate job created for a branch |
+| Scan Multibranch Pipeline | Scans for branches and Jenkinsfiles |
+
+## What I Learned
+
+- How to create a Multibranch Pipeline.
+- How to integrate Jenkins with GitHub.
+- How to configure a Jenkinsfile path.
+- How to discover multiple branches.
+- How to create branch-specific jobs.
+- How to troubleshoot missing Jenkinsfiles.
+
+---
+
+# 3. Jenkins Backup
+
+## What is Jenkins Backup?
+
+Jenkins stores important data such as jobs, configurations, plugins and build-related information inside its home directory.
+
+My Jenkins home directory:
+
+```bash
+/var/lib/jenkins
+```
+
+My backup directory:
+
+```bash
+/backup/jenkins
+```
+
+I practised creating a compressed backup using the Linux `tar` command.
+
+## Step 1: Check Jenkins Home Size
+
+```bash
+sudo du -sh /var/lib/jenkins
+```
+
+Displays the total size of the Jenkins home directory.
+
+## Step 2: Create Backup Directory
+
+```bash
+sudo mkdir -p /backup/jenkins
+```
+
+Creates the backup directory if it does not exist.
+
+## Step 3: Create Jenkins Backup
+
+```bash
+sudo tar -czpf /backup/jenkins/jenkins-backup-$(date +%F-%H%M).tar.gz -C /var/lib jenkins
+```
+
+My backup file:
+
+```text
+jenkins-backup-2026-10-31-1522.tar.gz
+```
+
+The backup archive size was approximately 610 MB.
+
+## Understanding the tar Command
+
+| Option | Meaning |
+|---|---|
+| tar | Archive utility |
+| -c | Create archive |
+| -z | Compress using gzip |
+| -p | Preserve permissions |
+| -f | Specify archive filename |
+| -C | Change directory before archiving |
+| $(date +%F-%H%M) | Adds date and time to the filename |
+
+## Step 4: Verify Backup
+
+```bash
+sudo tar -tzf /backup/jenkins/jenkins-backup-2026-10-31-1522.tar.gz > /dev/null && echo "Backup is valid"
+```
+
+Expected output:
+
+```text
+Backup is valid
+```
+
+This checks whether the archive can be read.
+
+## Step 5: Check Backup Files
+
+```bash
+sudo ls -lh /backup/jenkins/
+```
+
+Displays the backup files and their sizes.
+
+---
+
+# 4. Jenkins Backup Shell Scripting
+
+I also practised writing a Bash shell script to automate Jenkins backup operations.
+
+## Step 1: Create the Script
+
+```bash
+sudo vim /usr/local/bin/jenkins-backup.sh
+```
+
+## Step 2: Shell Scripting Concepts
+
+### 1. Shebang
+
+```bash
+#!/bin/bash
+```
+
+Tells Linux to execute the script using Bash.
+
+### 2. Variables
+
+```bash
+JENKINS_HOME="/var/lib/jenkins"
+BACKUP_DIR="/backup/jenkins"
+DATE=$(date +%F-%H%M)
+```
+
+Variables store values that can be reused throughout the script.
+
+### 3. Command Substitution
+
+```bash
+DATE=$(date +%F-%H%M)
+```
+
+Runs the command and stores its output in a variable.
+
+### 4. Create Directory
+
+```bash
+mkdir -p "$BACKUP_DIR"
+```
+
+Creates the backup directory if it does not exist.
+
+### 5. Disk Usage
+
+```bash
+df -P "$BACKUP_DIR"
+```
+
+Displays filesystem usage for the backup location.
+
+### 6. Directory Size
+
+```bash
+du -sh "$JENKINS_HOME"
+```
+
+Displays the Jenkins home directory size.
+
+### 7. if Condition
+
+```bash
+if [ "$CURRENT_USAGE" -ge "$MAX_USAGE" ]; then
+    echo "Disk usage limit reached"
+    exit 1
+fi
+```
+
+- `if` checks a condition.
+- `-ge` means greater than or equal to.
+- `exit 1` stops the script with an error status.
+
+### 8. for Loop
+
+```bash
+for file in /backup/jenkins/*.tar.gz
+do
+    echo "$file"
+done
+```
+
+Processes multiple backup files.
+
+### 9. Delete Old Files
+
+```bash
+rm -f -- "$file"
+```
+
+Deletes the specified file without prompting.
+
+Always verify the filename before deleting backup files.
+
+## Step 3: Check Script Syntax
+
+```bash
+sudo bash -n /usr/local/bin/jenkins-backup.sh
+```
+
+Checks the Bash script for syntax errors without executing it.
+
+## Step 4: Give Execute Permission
+
+```bash
+sudo chmod +x /usr/local/bin/jenkins-backup.sh
+```
+
+Makes the script executable.
+
+## Step 5: Execute Script
+
+```bash
+sudo /usr/local/bin/jenkins-backup.sh
+```
+
+Runs the backup script.
+
+**Important practical note:** I was refining the script to enforce a maximum disk-usage limit of 20%, check free space before creating a backup, and retain the latest five backup files.
+
+The earlier draft had a logic issue: it created the archive before checking disk usage and did not actually create the backup after its later checks. Therefore, the script must be corrected and tested before being used as an automated production backup.
+
+---
+
+# 5. Jenkins Restore
+
+Restoring means recovering Jenkins data from a backup archive.
+
+**Warning:** Restoration replaces the existing Jenkins home directory. Verify the archive and preserve the existing directory before proceeding.
+
+## Step 1: Stop Jenkins
+
+```bash
+sudo systemctl stop jenkins
+```
+
+Stops the Jenkins service.
+
+## Step 2: Preserve Existing Jenkins Home
+
+```bash
+sudo mv /var/lib/jenkins /var/lib/jenkins-old
+```
+
+Keeps the existing Jenkins directory as a recovery option.
+
+## Step 3: Extract Backup
+
+```bash
+sudo tar -xzpf /backup/jenkins/jenkins-backup-2026-10-31-1522.tar.gz -C /var/lib
+```
+
+Extracts the backup into `/var/lib`.
+
+## Step 4: Set Ownership
+
+```bash
+sudo chown -R jenkins:jenkins /var/lib/jenkins
+```
+
+Sets Jenkins ownership on the restored directory.
+
+## Step 5: Start Jenkins
+
+```bash
+sudo systemctl start jenkins
+```
+
+Starts Jenkins.
+
+## Step 6: Verify Jenkins
+
+```bash
+sudo systemctl status jenkins
+```
+
+Check that Jenkins is running, then open the Jenkins dashboard and verify the jobs and configurations.
+
+**Restore notes:**
+
+- Use a backup compatible with your Jenkins version.
+- Keep the old Jenkins directory until restoration is verified.
+- Back up important secrets and separately stored data as part of a complete disaster-recovery plan.
+- The restore commands above assume the archive was created with `-C /var/lib jenkins`.
+
+---
+
+# 6. Linux Commands Practised
+
+| Command | Purpose |
+|---|---|
+| `du -sh` | Check directory size |
+| `df -h` | Check filesystem usage |
+| `mkdir -p` | Create directories |
+| `tar -czpf` | Create compressed backup |
+| `tar -tzf` | Check archive contents |
+| `tar -xzpf` | Extract backup |
+| `date` | Generate date and time |
+| `vim` | Create or edit script |
+| `bash -n` | Check Bash syntax |
+| `chmod +x` | Give execution permission |
+| `chown` | Change file ownership |
+| `systemctl stop` | Stop Jenkins |
+| `systemctl start` | Start Jenkins |
+| `systemctl status` | Check Jenkins status |
+
+# 7. What I Learned
+
+### Multibranch Pipeline
+
+- GitHub integration.
+- Branch discovery.
+- Jenkinsfile configuration.
+- Branch indexing.
+- Independent branch builds.
+
+### Backup and Restore
+
+- Jenkins home directory.
+- Compressed backup creation.
+- Backup archive verification.
+- Bash variables and command substitution.
+- Conditions and loops.
+- Disk usage checks.
+- Backup retention concepts.
+- Jenkins restoration.
+- Service verification.
+
+These are the Multibranch Pipeline and Backup/Restore practicals I completed during my Jenkins learning.

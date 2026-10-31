@@ -1,0 +1,1009 @@
+# Jenkins Groovy Pipelines – Scripted and Declarative
+
+## 1. Introduction
+
+In this practical, I learned Jenkins Pipeline using Groovy scripting.
+
+I completed two types of pipelines:
+
+1. Scripted Pipeline
+2. Declarative Pipeline
+
+I integrated my Maven application with GitHub, Maven, SonarQube, Nexus, Tomcat and Slack.
+
+### My Pipeline Flow
+
+```text
+GitHub
+   |
+   v
+Jenkins
+   |
+   v
+Git Checkout
+   |
+   v
+Maven Build
+   |
+   v
+SonarQube Analysis
+   |
+   v
+Nexus Deployment
+   |
+   v
+Tomcat Deployment
+   |
+   v
+Slack Notification
+```
+
+## 2. Project Details
+
+| Configuration | Value |
+|---|---|
+| GitHub repository | Ramana175/Maven |
+| Branch | development |
+| Project directory | tomcat-web-application |
+| Maven | Maven-3.10.0 |
+| SonarQube | SonarQube-Server |
+| Slack channel | #new-channel |
+| Tomcat credential ID | tomcat-manager |
+
+Project structure:
+
+```text
+Maven/
+└── tomcat-web-application/
+    ├── Jenkinsfile
+    ├── Jenkinsfile-declerative
+    ├── pom.xml
+    └── src/
+        └── main/
+            ├── java/
+            └── webapp/
+```
+
+---
+
+# 3. Scripted Pipeline
+
+## What is Scripted Pipeline?
+
+Scripted Pipeline is a Jenkins pipeline written using Groovy scripting.
+
+It allows us to use programming concepts such as:
+
+- Variables
+- Conditions
+- Loops
+- Functions
+- Methods
+- try/catch
+- Groovy blocks
+
+Main syntax:
+
+```groovy
+node {
+    // Pipeline steps
+}
+```
+
+## My Scripted Pipeline Jenkinsfile
+
+File: `Jenkinsfile`
+
+Location: `tomcat-web-application/Jenkinsfile`
+
+```groovy
+node {
+    def mavenHome = tool name: "Maven-3.10.0"
+
+    try {
+        // Build Started - Yellow
+        slackSend(
+            channel: '#new-channel',
+            color: '#F2C94C',
+            message: "BUILD STARTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+        )
+
+        // Git Checkout
+        stage('Git Checkout') {
+            git branch: 'development',
+                url: 'https://github.com/Ramana175/Maven.git'
+        }
+
+        // Build
+        stage('Build') {
+            dir('tomcat-web-application') {
+                sh "${mavenHome}/bin/mvn clean package"
+            }
+        }
+
+        // SonarQube
+        stage('SonarQube') {
+            dir('tomcat-web-application') {
+                withSonarQubeEnv('SonarQube-Server') {
+                    sh "${mavenHome}/bin/mvn clean package org.sonarsource.scanner.maven:sonar-maven-plugin:5.3.0.6276:sonar"
+                }
+            }
+        }
+
+        // Nexus Artifacts
+        stage('Nexus-Artifacts') {
+            dir('tomcat-web-application') {
+                sh "${mavenHome}/bin/mvn clean package deploy"
+            }
+        }
+
+        // Tomcat Deployment
+        stage('Tomcat Deployment') {
+            dir('tomcat-web-application') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'tomcat-manager',
+                    usernameVariable: 'TOMCAT_USER',
+                    passwordVariable: 'TOMCAT_PASSWORD'
+                )]) {
+                    sh '''
+                        curl --fail --show-error --silent \
+                            --user "$TOMCAT_USER:$TOMCAT_PASSWORD" \
+                            --upload-file target/tomcat-web-application-1.0.0.war \
+                            "http://13.211.236.136:8080/manager/text/deploy?path=/tomcat-web-application&update=true"
+                    '''
+                }
+            }
+        }
+
+        // Build Successful - Green
+        slackSend(
+            channel: '#new-channel',
+            color: '#2EAD62',
+            message: "BUILD SUCCESSFUL: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+        )
+
+    } catch (err) {
+        // Build Failed - Red
+        slackSend(
+            channel: '#new-channel',
+            color: '#E53935',
+            message: "BUILD FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+        )
+
+        currentBuild.result = 'FAILURE'
+        throw err
+    }
+}
+```
+
+## Understanding Scripted Pipeline Groovy Syntax
+
+### 1. node
+
+```groovy
+node {
+    // Pipeline code
+}
+```
+
+Allocates a Jenkins agent and runs pipeline steps inside it.
+
+### 2. def
+
+```groovy
+def mavenHome = tool name: "Maven-3.10.0"
+```
+
+- `def` declares a variable.
+- `mavenHome` stores the configured Maven installation path.
+- `tool` selects Maven configured in Jenkins.
+
+### 3. try and catch
+
+```groovy
+try {
+    // Pipeline execution
+}
+catch (err) {
+    // Error handling
+}
+```
+
+- `try` contains the pipeline operations.
+- `catch` handles errors.
+- `throw err` rethrows the error.
+- In my practical, a failed build sends a Slack failure notification.
+
+### 4. stage
+
+```groovy
+stage('Build') {
+    sh 'mvn clean package'
+}
+```
+
+Divides the pipeline into stages so we can monitor each step.
+
+### 5. Git Checkout
+
+```groovy
+git branch: 'development',
+    url: 'https://github.com/Ramana175/Maven.git'
+```
+
+Downloads the source code from the development branch.
+
+### 6. dir
+
+```groovy
+dir('tomcat-web-application') {
+    sh 'mvn clean package'
+}
+```
+
+Runs commands inside the specified project directory.
+
+### 7. sh
+
+```groovy
+sh 'mvn clean package'
+```
+
+Executes Linux shell commands from Jenkins.
+
+### 8. String Interpolation
+
+```groovy
+"BUILD STARTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+```
+
+`${}` inserts variables or expressions into a Groovy string.
+
+- `env.JOB_NAME`: Jenkins job name.
+- `env.BUILD_NUMBER`: Current build number.
+
+### 9. withSonarQubeEnv
+
+```groovy
+withSonarQubeEnv('SonarQube-Server') {
+    sh 'mvn sonar:sonar'
+}
+```
+
+Loads the SonarQube server configuration from Jenkins.
+
+### 10. withCredentials
+
+```groovy
+withCredentials([usernamePassword(
+    credentialsId: 'tomcat-manager',
+    usernameVariable: 'TOMCAT_USER',
+    passwordVariable: 'TOMCAT_PASSWORD'
+)]) {
+    // Use credentials
+}
+```
+
+Uses credentials stored in Jenkins without hardcoding passwords in the pipeline.
+
+### 11. slackSend
+
+```groovy
+slackSend(
+    channel: '#new-channel',
+    color: '#2EAD62',
+    message: 'BUILD SUCCESSFUL'
+)
+```
+
+Sends a Slack notification.
+
+### 12. currentBuild.result
+
+```groovy
+currentBuild.result = 'FAILURE'
+```
+
+Sets the Jenkins build result to failure.
+
+## How I Configured Scripted Pipeline
+
+1. Opened Jenkins dashboard.
+2. Selected New Item.
+3. Entered the job name.
+4. Selected Pipeline.
+5. Opened the Pipeline section.
+6. Selected Pipeline script.
+7. Pasted my Groovy code.
+8. Saved the job.
+9. Selected Build Now.
+10. Checked Console Output and stage results.
+
+---
+
+# 4. Declarative Pipeline
+
+## What is Declarative Pipeline?
+
+Declarative Pipeline is a structured way to write Jenkins pipelines using Groovy.
+
+Main syntax:
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+    }
+}
+```
+
+It uses predefined sections such as:
+
+- pipeline
+- agent
+- options
+- tools
+- environment
+- stages
+- steps
+- post
+
+## My Declarative Pipeline Jenkinsfile
+
+File: `Jenkinsfile-declerative`
+
+Location: `tomcat-web-application/Jenkinsfile-declerative`
+
+```groovy
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    tools {
+        maven "Maven-3.10.0"
+    }
+
+    environment {
+        TOMCAT_URL = 'http://172.31.46.97:8080'
+    }
+
+    stages {
+        stage('Pipeline Started') {
+            steps {
+                script {
+                    notifyBuild('STARTED')
+                }
+            }
+        }
+
+        stage('Git Checkout') {
+            steps {
+                git branch: 'development',
+                    url: 'https://github.com/Ramana175/Maven.git'
+            }
+        }
+
+        stage('Compile and Test') {
+            steps {
+                dir('tomcat-web-application') {
+                    sh "mvn clean verify"
+                }
+            }
+        }
+
+        stage('SonarQube') {
+            steps {
+                dir('tomcat-web-application') {
+                    withSonarQubeEnv('SonarQube-Server') {
+                        sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar"
+                    }
+                }
+            }
+        }
+
+        stage('Nexus') {
+            steps {
+                dir('tomcat-web-application') {
+                    sh "mvn deploy"
+                }
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                dir('tomcat-web-application') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'tomcat-manager',
+                        usernameVariable: 'TOMCAT_USER',
+                        passwordVariable: 'TOMCAT_PASSWORD'
+                    )]) {
+                        sh '''
+                            curl --fail --show-error --silent \
+                            --user "$TOMCAT_USER:$TOMCAT_PASSWORD" \
+                            --upload-file target/tomcat-web-application-1.0.0.war \
+                            "$TOMCAT_URL/manager/text/deploy?path=/tomcat-web-application&update=true"
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline execution finished!'
+        }
+
+        success {
+            script {
+                notifyBuild('SUCCESS')
+            }
+        }
+
+        failure {
+            script {
+                notifyBuild('FAILURE')
+            }
+        }
+
+        aborted {
+            script {
+                notifyBuild('ABORTED')
+            }
+        }
+    }
+}
+
+def notifyBuild(String buildStatus = 'STARTED') {
+    def colourCode
+
+    def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+    def summary = "${subject} (${env.BUILD_URL})"
+
+    switch (buildStatus) {
+        case 'STARTED':
+            colourCode = '#2D9CDB'
+            break
+
+        case 'SUCCESS':
+            colourCode = '#2EB886'
+            break
+
+        case 'FAILURE':
+            colourCode = '#E01E5A'
+            break
+
+        case 'ABORTED':
+            colourCode = '#F2C744'
+            break
+
+        default:
+            colourCode = '#E01E5A'
+            break
+    }
+
+    slackSend(
+        channel: '#new-channel',
+        color: colourCode,
+        message: summary,
+        tokenCredentialId: 'slack-bot-token'
+    )
+}
+```
+
+## Understanding Declarative Pipeline Syntax
+
+### 1. pipeline
+
+```groovy
+pipeline {
+    // Pipeline configuration
+}
+```
+
+Main block of a Declarative Pipeline.
+
+### 2. agent any
+
+```groovy
+agent any
+```
+
+Allows Jenkins to execute the pipeline on any available agent.
+
+### 3. options
+
+```groovy
+options {
+    timeout(time: 30, unit: 'MINUTES')
+    timestamps()
+    disableConcurrentBuilds()
+}
+```
+
+| Option | Purpose |
+|---|---|
+| timeout | Stops a build after 30 minutes |
+| timestamps | Adds timestamps to console output |
+| disableConcurrentBuilds | Prevents concurrent builds of this job |
+
+### 4. tools
+
+```groovy
+tools {
+    maven "Maven-3.10.0"
+}
+```
+
+Selects the Maven installation configured in Jenkins.
+
+### 5. environment
+
+```groovy
+environment {
+    TOMCAT_URL = 'http://172.31.46.97:8080'
+}
+```
+
+Defines environment variables that can be used by pipeline steps.
+
+### 6. stages and stage
+
+```groovy
+stages {
+    stage('Build') {
+        steps {
+            sh 'mvn clean verify'
+        }
+    }
+}
+```
+
+Defines the stages and their execution steps.
+
+### 7. steps
+
+Contains the actual commands and pipeline operations inside a stage.
+
+### 8. post
+
+```groovy
+post {
+    always {
+        echo 'Pipeline finished'
+    }
+
+    success {
+        echo 'Build successful'
+    }
+
+    failure {
+        echo 'Build failed'
+    }
+
+    aborted {
+        echo 'Build aborted'
+    }
+}
+```
+
+Runs actions based on the pipeline result.
+
+| Condition | Meaning |
+|---|---|
+| always | Runs regardless of result |
+| success | Runs after a successful pipeline |
+| failure | Runs after a failed pipeline |
+| aborted | Runs after an aborted pipeline |
+
+### 9. script
+
+```groovy
+script {
+    notifyBuild('SUCCESS')
+}
+```
+
+Allows regular Groovy code inside a Declarative Pipeline.
+
+### 10. def Function
+
+```groovy
+def notifyBuild(String buildStatus = 'STARTED') {
+    // Notification logic
+}
+```
+
+- `def` defines a method.
+- `notifyBuild` is the method name.
+- `String buildStatus` is the parameter.
+- `STARTED` is the default parameter value.
+
+### 11. switch and case
+
+```groovy
+switch (buildStatus) {
+    case 'SUCCESS':
+        colourCode = '#2EB886'
+        break
+
+    case 'FAILURE':
+        colourCode = '#E01E5A'
+        break
+}
+```
+
+Checks the build status and selects the corresponding notification color.
+
+### 12. Triple Single Quotes
+
+```groovy
+sh '''
+    echo "Hello from Jenkins"
+'''
+```
+
+Allows multiline strings. I used this syntax for the Tomcat deployment command.
+
+## How I Configured Declarative Pipeline
+
+1. Opened Jenkins dashboard.
+2. Created a Pipeline job.
+3. Selected Pipeline script.
+4. Pasted the Declarative Jenkinsfile.
+5. Saved the job.
+6. Selected Build Now.
+7. Checked each stage and Console Output.
+8. Verified Slack notifications and Tomcat deployment.
+
+---
+
+# 5. Scripted vs Declarative Pipeline
+
+| Feature | Scripted | Declarative |
+|---|---|---|
+| Main block | node {} | pipeline {} |
+| Structure | Flexible | Predefined |
+| Stages | stage() | stages and stage |
+| Variables | def | def and environment |
+| Error handling | try/catch | post conditions and error-handling steps |
+| Functions | Supported | Supported |
+| Shell commands | sh | sh |
+| Credentials | withCredentials | withCredentials |
+
+# 6. What I Learned
+
+- Writing Jenkins pipelines using Groovy.
+- Declaring variables using `def`.
+- Using `node`, `stage`, `dir` and `sh`.
+- Using `try/catch` for error handling.
+- Creating Groovy functions.
+- Using `switch/case`.
+- Integrating Jenkins with Maven.
+- Running SonarQube analysis.
+- Publishing artifacts to Nexus.
+- Deploying WAR files to Tomcat.
+- Sending Slack notifications.
+- Understanding Scripted and Declarative Pipeline differences.
+
+This README documents the Scripted and Declarative Pipeline practicals I completed during my DevOps learning.
+
+# Jenkins Groovy Pipeline – Scripted vs Declarative
+
+## 1. Introduction
+
+Jenkins supports two main ways to write pipelines using Groovy:
+
+1. Scripted Pipeline
+2. Declarative Pipeline
+
+Both are used to automate CI/CD workflows, but their syntax and structure are different.
+
+## 2. Scripted Pipeline
+
+Scripted Pipeline is based on Groovy programming. It provides flexibility to write custom pipeline logic.
+
+**Basic syntax:**
+
+```groovy
+node {
+    stage('Build') {
+        sh 'mvn clean package'
+    }
+}
+```
+
+### Important syntax
+
+| Syntax | Purpose |
+|---|---|
+| `node {}` | Allocates a Jenkins agent |
+| `def` | Declares a variable |
+| `stage()` | Defines a pipeline stage |
+| `sh` | Executes Linux commands |
+| `dir()` | Changes the working directory |
+| `try` | Executes code that may fail |
+| `catch` | Handles errors |
+| `throw` | Rethrows an error |
+| `if/else` | Checks conditions |
+| `for` | Executes a loop |
+| `switch/case` | Checks multiple conditions |
+| `slackSend()` | Sends Slack notifications |
+| `withCredentials()` | Uses stored Jenkins credentials |
+
+### Example
+
+```groovy
+node {
+    def mavenHome = tool name: "Maven-3.10.0"
+
+    try {
+        stage('Git Checkout') {
+            git branch: 'development',
+                url: 'https://github.com/Ramana175/Maven.git'
+        }
+
+        stage('Build') {
+            dir('tomcat-web-application') {
+                sh "${mavenHome}/bin/mvn clean package"
+            }
+        }
+
+    } catch (err) {
+        currentBuild.result = 'FAILURE'
+        throw err
+    }
+}
+```
+
+## 3. Declarative Pipeline
+
+Declarative Pipeline uses a predefined structure. It is easier to read and maintain for standard CI/CD workflows.
+
+**Basic syntax:**
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+    }
+}
+```
+
+### Important syntax
+
+| Syntax | Purpose |
+|---|---|
+| `pipeline {}` | Main pipeline block |
+| `agent any` | Runs on any available agent |
+| `options {}` | Configures pipeline options |
+| `tools {}` | Selects configured tools |
+| `environment {}` | Defines environment variables |
+| `stages {}` | Contains pipeline stages |
+| `stage()` | Defines an individual stage |
+| `steps {}` | Contains commands |
+| `post {}` | Runs actions based on build result |
+| `script {}` | Allows Groovy scripting |
+| `when {}` | Controls whether a stage should run |
+| `input {}` | Requests manual approval |
+
+### Example
+
+```groovy
+pipeline {
+    agent any
+
+    tools {
+        maven "Maven-3.10.0"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'development',
+                    url: 'https://github.com/Ramana175/Maven.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('tomcat-web-application') {
+                    sh 'mvn clean package'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build successful'
+        }
+
+        failure {
+            echo 'Build failed'
+        }
+    }
+}
+```
+
+## 4. Difference Between Scripted and Declarative Pipeline
+
+| Feature | Scripted Pipeline | Declarative Pipeline |
+|---|---|---|
+| 1. Syntax | Groovy scripting | Predefined pipeline syntax |
+| 2. Main block | `node {}` | `pipeline {}` |
+| 3. Structure | Flexible | Structured |
+| 4. Learning | Requires more Groovy knowledge | Easier for beginners |
+| 5. Agent | `node` | `agent` |
+| 6. Stages | `stage()` | `stages` and `stage()` |
+| 7. Commands | `sh` | `sh` inside `steps` |
+| 8. Variables | Uses `def` and other Groovy declarations | Supports `def` and `environment` |
+| 9. Error handling | Groovy `try/catch` | `post` conditions and Groovy error handling |
+| 10. Conditions | Groovy `if/else` | Declarative `when` and Groovy conditions in scripts |
+| 11. Functions | Supports Groovy methods | Supports methods and `script` blocks |
+| 12. Flexibility | More flexible | More restricted structure |
+| 13. Readability | Can become complex | Usually easier to understand |
+| 14. Validation | Groovy and Jenkins Pipeline syntax | Declarative Pipeline structure is validated |
+| 15. Maintenance | Can require more Groovy knowledge | Easier to maintain for standard pipelines |
+
+## 5. Practical Examples from My Jenkins Learning
+
+### Scripted Pipeline – Groovy Concepts I Used
+
+```groovy
+def mavenHome = tool name: "Maven-3.10.0"
+
+try {
+    stage('Build') {
+        sh "${mavenHome}/bin/mvn clean package"
+    }
+} catch (err) {
+    currentBuild.result = 'FAILURE'
+    throw err
+}
+```
+
+I used:
+
+- `def` for variables.
+- `try/catch` for error handling.
+- `stage()` for pipeline stages.
+- `sh` for Linux commands.
+- `throw` to report errors.
+
+### Declarative Pipeline – Groovy Concepts I Used
+
+```groovy
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        TOMCAT_URL = 'http://172.31.46.97:8080'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                dir('tomcat-web-application') {
+                    sh 'mvn clean verify'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build successful'
+        }
+
+        failure {
+            echo 'Build failed'
+        }
+    }
+}
+```
+
+I used:
+
+- `pipeline` for the main structure.
+- `agent` to select an execution agent.
+- `options` for pipeline settings.
+- `environment` for variables.
+- `stages` and `steps` for execution.
+- `post` for build-result handling.
+
+## 6. When Should We Use Each Pipeline?
+
+### Scripted Pipeline
+
+Use Scripted Pipeline when:
+
+- Complex Groovy logic is required.
+- Custom conditions and loops are needed.
+- Advanced error handling is required.
+- More control over execution is needed.
+
+### Declarative Pipeline
+
+Use Declarative Pipeline when:
+
+- A standard CI/CD workflow is required.
+- The pipeline should be easy to read.
+- Multiple developers maintain the pipeline.
+- Built-in sections such as `post`, `options`, `environment` and `when` are useful.
+
+## 7. My Practical Experience
+
+In my Jenkins learning, I created both Scripted and Declarative Pipelines for the same Maven web application.
+
+I integrated the following tools:
+
+| Tool | Purpose |
+|---|---|
+| GitHub | Source code management |
+| Jenkins | CI/CD automation |
+| Maven | Build and package the application |
+| SonarQube | Code quality analysis |
+| Nexus | Artifact storage |
+| Tomcat | WAR application deployment |
+| Slack | Build notifications |
+
+### Scripted Pipeline Practical
+
+I used:
+
+- Git checkout.
+- Maven build.
+- SonarQube analysis.
+- Nexus deployment.
+- Tomcat deployment.
+- Slack success and failure notifications.
+- `try/catch` error handling.
+
+### Declarative Pipeline Practical
+
+I used:
+
+- `pipeline` and `agent`.
+- `options`, `tools` and `environment`.
+- Git checkout.
+- Maven verification.
+- SonarQube analysis.
+- Nexus deployment.
+- Tomcat deployment.
+- `post` conditions.
+- A custom `notifyBuild()` Groovy method for Slack notifications.
+
+## 8. Final Learning
+
+Both Scripted and Declarative Pipelines are useful in Jenkins.
+
+- Scripted Pipeline provides flexibility through Groovy programming.
+- Declarative Pipeline provides a predefined structure for CI/CD automation.
+- Both can integrate with the same DevOps tools.
+- The right choice depends on the complexity and requirements of the project.
+
+**My conclusion:** I practised both pipeline types and understood how Groovy scripting is used in real-time Jenkins CI/CD automation.
