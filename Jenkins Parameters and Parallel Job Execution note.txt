@@ -1,0 +1,188 @@
+# Jenkins Parameters and Parallel Job Execution
+
+## 1. Jenkins Parameters
+
+### What are Jenkins Parameters?
+
+Parameters allow users to provide input values before starting a Jenkins build.
+
+For example:
+- Select an environment: DEV, QA, or PROD.
+- Enter an application version.
+- Decide whether tests should run.
+
+### Parameters Practiced
+
+| Parameter | Type | Purpose |
+|---|---|---|
+| ENVIRONMENT | choice | Select DEV, QA, PROD |
+| APP_VERSION | string | Enter application version |
+| RUN_TESTS | booleanParam | Run or skip tests |
+| PASSWORD | password | Accept password input |
+
+### Example Jenkinsfile
+
+```groovy
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['DEV', 'QA', 'PROD'],
+            description: 'Select environment'
+        )
+
+        string(
+            name: 'APP_VERSION',
+            defaultValue: '1.0.0',
+            description: 'Application version'
+        )
+
+        booleanParam(
+            name: 'RUN_TESTS',
+            defaultValue: true,
+            description: 'Run tests'
+        )
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "Version: ${params.APP_VERSION}"
+            }
+        }
+
+        stage('Testing') {
+            when {
+                expression { params.RUN_TESTS }
+            }
+            steps {
+                echo 'Running tests'
+            }
+        }
+
+        stage('Package') {
+            steps {
+                echo 'Packaging application'
+            }
+        }
+    }
+}
+```
+
+### Important Points
+
+- `parameters {}` defines build parameters.
+- `choice` provides a dropdown.
+- `string` accepts text.
+- `booleanParam` provides true/false selection.
+- `params.PARAMETER_NAME` reads a parameter.
+- `when` controls whether a stage executes.
+
+### Password Parameter
+
+A password parameter accepts sensitive input. Never print passwords in console output. For real deployment secrets, prefer Jenkins Credentials.
+
+---
+
+## 2. Parallel Job Execution
+
+### What is Parallel Execution?
+
+Parallel execution allows Jenkins to execute multiple independent tasks at the same time.
+
+Example:
+
+- Testing
+- Security Scan
+- Code Quality
+
+### Example Jenkinsfile
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Parallel Tasks') {
+            parallel {
+                stage('Testing') {
+                    steps {
+                        echo 'Testing started'
+                        sh 'sleep 10'
+                        echo 'Testing completed'
+                    }
+                }
+
+                stage('Security Scan') {
+                    steps {
+                        echo 'Security scan started'
+                        sh 'sleep 10'
+                        echo 'Security scan completed'
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### failFast
+
+`failFast true` stops the other parallel branches when one branch fails.
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Parallel Tasks') {
+            failFast true
+
+            parallel {
+                stage('Testing') {
+                    steps {
+                        echo 'Testing started'
+                        sh 'sleep 30'
+                    }
+                }
+
+                stage('Security Scan') {
+                    steps {
+                        echo 'Security scan started'
+                        sh 'exit 1'
+                    }
+                }
+
+                stage('Code Quality') {
+                    steps {
+                        echo 'Code Quality started'
+                        sh 'sleep 60'
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### Important Points
+
+| Keyword | Purpose |
+|---|---|
+| `parallel` | Runs stages simultaneously |
+| `failFast true` | Stops other branches after failure |
+| `sleep` | Pauses execution |
+| `exit 1` | Returns a failure status |
+
+### Real-Time Use Cases
+
+- Run unit tests and security scans together.
+- Test applications on multiple environments.
+- Build multiple independent components simultaneously.
+
+### Lab Summary
+
+We practiced Jenkins parameters, conditional stages, parallel execution, and fail-fast behavior using the `Parallel-Pipeline` job.

@@ -1,0 +1,216 @@
+# Jenkins Upstream, Downstream Jobs and Shared Libraries
+
+## 1. Upstream and Downstream Jobs
+
+### What is an Upstream Job?
+
+An upstream job is a Jenkins job that triggers another job.
+
+### What is a Downstream Job?
+
+A downstream job is the job triggered by the upstream job.
+
+Example:
+
+`Pipeline-Upstream` → `Pipeline-Downstream`
+
+### Jobs Used
+
+- Upstream: `Pipeline-Upstream`
+- Downstream: `Pipeline-Downstream`
+
+### Upstream Jenkinsfile
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Trigger Downstream') {
+            steps {
+                echo 'Starting downstream job'
+
+                build job: 'Pipeline-Downstream',
+                      wait: true,
+                      propagate: false
+
+                echo 'Downstream execution finished'
+            }
+        }
+    }
+}
+```
+
+### Downstream Jenkinsfile
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Downstream Task') {
+            steps {
+                echo 'Downstream job started'
+                sh 'exit 1'
+            }
+        }
+    }
+}
+```
+
+### Understanding the Options
+
+| Option | Meaning |
+|---|---|
+| `job` | Name of the downstream job |
+| `wait: true` | Wait until downstream finishes |
+| `propagate: true` | Pass downstream result to upstream |
+| `propagate: false` | Do not automatically pass downstream failure |
+
+### Lab Result
+
+- Upstream triggered downstream.
+- Downstream failed intentionally using `exit 1`.
+- Upstream waited for downstream completion.
+- Because `propagate: false` was used, upstream completed successfully despite the downstream failure.
+
+### Real-Time Example
+
+`Build Job` → `Testing Job` → `Deployment Job`
+
+---
+
+## 2. Jenkins Shared Libraries
+
+### What is a Shared Library?
+
+A Jenkins Shared Library is reusable Pipeline code stored in a Git repository.
+
+Instead of writing the same code in multiple Jenkinsfiles, we write it once and reuse it.
+
+### GitHub Repository
+
+Repository name: `jenkins-shared-library`
+
+GitHub repository:
+
+https://github.com/Ramana175/jenkins-shared-library
+
+### Folder Structure
+
+```text
+jenkins-shared-library/
+├── resources/
+│   └── config/
+├── src/
+│   └── org/
+│       └── example/
+└── vars/
+    └── hello.groovy
+```
+
+### First Shared Library Function
+
+File: `vars/hello.groovy`
+
+```groovy
+def call() {
+    echo 'Hello from Jenkins Shared Library!'
+}
+```
+
+### Configure Shared Library in Jenkins
+
+1. Open Manage Jenkins.
+2. Select System.
+3. Find Global Trusted Pipeline Libraries.
+4. Click Add.
+5. Configure the following:
+
+| Setting | Value |
+|---|---|
+| Name | `jenkins-shared-library` |
+| Default version | `main` |
+| Retrieval method | Modern SCM |
+| SCM | Git |
+| Repository URL | `https://github.com/Ramana175/jenkins-shared-library.git` |
+| Credentials | None (public repository) |
+
+6. Save the configuration.
+
+**Security note:** Trusted libraries can execute powerful Jenkins operations. Use this setting only for a repository you own and control.
+
+### Use Shared Library in Jenkinsfile
+
+```groovy
+@Library('jenkins-shared-library') _
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Shared Library Test') {
+            steps {
+                hello()
+            }
+        }
+    }
+}
+```
+
+### Understanding the Code
+
+- `@Library` loads the configured Shared Library.
+- `hello()` calls the reusable function.
+- Jenkins downloads the library from GitHub.
+- `vars/hello.groovy` provides the `hello()` pipeline step.
+
+### Lab Result
+
+The `Parallel-Pipeline` job successfully loaded the Shared Library from GitHub.
+
+Console output:
+
+```text
+Hello from Jenkins Shared Library!
+Finished: SUCCESS
+```
+
+### Important Shared Library Folders
+
+| Folder | Purpose |
+|---|---|
+| `vars/` | Reusable Pipeline functions |
+| `src/` | Groovy classes and supporting code |
+| `resources/` | Resource files used by the library |
+
+### Next Practice Idea
+
+Create another reusable function named `buildApp.groovy` inside `vars/`.
+
+```groovy
+def call(String appName) {
+    echo "Building Application: ${appName}"
+}
+```
+
+Call it from a Jenkinsfile:
+
+```groovy
+buildApp('Maven Demo Application')
+```
+
+This is a planned exercise, not yet completed in our lab.
+
+---
+
+## Lab Summary
+
+We practiced:
+
+- Upstream and downstream jobs.
+- Triggering jobs using the `build` step.
+- Understanding `wait` and `propagate`.
+- Creating a GitHub Shared Library.
+- Configuring a Global Trusted Pipeline Library.
+- Loading and calling a reusable function using `@Library`.
