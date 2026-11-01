@@ -1,0 +1,488 @@
+# Jenkins Master–Slave Architecture (Controller–Agent) – Complete Practical Guide
+
+## 1. What is Jenkins?
+
+Jenkins is an open-source automation server used to automate software development activities such as:
+
+- Building applications
+- Running tests
+- Deploying applications
+- Continuous Integration (CI)
+- Continuous Delivery (CD)
+
+Jenkins helps automate the software delivery process.
+
+## 2. What is Jenkins Master (Controller)?
+
+Jenkins Master is traditionally called the main Jenkins server.
+
+In modern Jenkins terminology, it is called the **Controller**.
+
+Think of the Controller as a manager in a company. It manages the work, assigns tasks, monitors execution, and displays results.
+
+### Responsibilities of Jenkins Master
+
+1. **Job Management:** Creates and manages Jenkins jobs and Pipelines.
+2. **Scheduling:** Decides when jobs should execute.
+3. **Plugin Management:** Installs and manages Jenkins plugins.
+4. **User Management:** Manages users and permissions.
+5. **Credentials Management:** Stores passwords, SSH keys, and tokens securely.
+6. **Build Monitoring:** Displays build status and Console Output.
+7. **Node Management:** Manages Built-In Nodes and connected Agents.
+8. **Configuration:** Manages global Jenkins settings.
+
+### How Jenkins Master Works
+
+Example: A developer pushes code to GitHub.
+
+1. Jenkins Controller receives a build trigger.
+2. Controller checks the job configuration.
+3. Controller schedules the build.
+4. The selected node executes the job.
+5. Controller displays the build result.
+
+### Jenkins Master Architecture
+
+```text
+          Developer
+              |
+              v
+           GitHub
+              |
+              v
+    +----------------------+
+    | Jenkins Master       |
+    | (Controller)         |
+    |                      |
+    | Job Management       |
+    | Scheduling           |
+    | Plugins              |
+    | Credentials          |
+    | Build Monitoring     |
+    +----------------------+
+              |
+              v
+       Build Execution
+```
+
+## 3. What is Jenkins Slave (Agent)?
+
+Slave is the older term for an Agent.
+
+An Agent is another machine connected to the Jenkins Controller to execute build jobs.
+
+For example, a company may have:
+
+- Controller – Manages Jenkins.
+- Agent 1 – Executes Java and Maven builds.
+- Agent 2 – Executes Docker builds.
+- Agent 3 – Executes testing jobs.
+
+### Agent Responsibilities
+
+1. Executes assigned Jenkins jobs.
+2. Runs shell commands.
+3. Compiles source code.
+4. Runs application tests.
+5. Creates application artifacts.
+6. Performs deployment activities.
+
+A separate Agent does not need a full Jenkins installation. It needs a compatible Java runtime and an appropriate connection method.
+
+### Controller–Agent Architecture
+
+```text
+              Developer
+                  |
+                  v
+               GitHub
+                  |
+                  v
+       +----------------------+
+       | Jenkins Controller  |
+       |                      |
+       | Job Management       |
+       | Scheduling           |
+       | Configuration        |
+       +----------------------+
+             /      |      \
+            /       |       \
+           v        v        v
+       Agent 1   Agent 2   Agent 3
+       Maven     Docker    Testing
+       Build     Build     Jobs
+```
+
+## 4. Difference Between Master, Built-In Node and Slave
+
+| Component           | Responsibility                             |
+| ------------------- | ------------------------------------------ |
+| Master / Controller | Manages Jenkins                            |
+| Built-In Node       | Executes jobs on the Controller machine    |
+| Slave / Agent       | Executes jobs on another connected machine |
+
+**Real-world example:**
+
+- Controller = Manager
+- Built-In Node = Work performed in the manager's office
+- Agent = Work performed by another team member on a separate machine
+
+## 5. What is Jenkins Built-In Node?
+
+The Built-In Node is the execution node that exists on the same machine as the Jenkins Controller.
+
+It can execute jobs locally without requiring another EC2 instance.
+
+In our practical:
+
+- Controller IP: `172.31.14.149`
+- Built-In Node: Same Jenkins machine.
+- Executors: 2
+- Label: `linux-build`
+
+**Important:** The Controller manages Jenkins, while the Built-In Node executes jobs on that same machine.
+
+## 6. Our Jenkins Server Details
+
+| Configuration    | Value         |
+| ---------------- | ------------- |
+| Jenkins Version  | 2.580.1       |
+| Operating System | Ubuntu        |
+| Private IP       | 172.31.14.149 |
+| CPU              | 2 vCPUs       |
+| RAM              | 7.6 GiB       |
+| Executors        | 2             |
+| Node             | Built-In Node |
+
+## 7. What are Jenkins Executors?
+
+Executors determine how many jobs Jenkins can execute simultaneously on a node.
+
+Example:
+
+| Executors | Execution                       |
+| --------- | ------------------------------- |
+| 1         | One job at a time               |
+| 2         | Up to two jobs simultaneously   |
+| 3         | Up to three jobs simultaneously |
+
+Our configuration:
+
+```text
+Number of Executors: 2
+```
+
+We checked executor configuration through:
+
+```text
+Manage Jenkins
+    |
+    v
+Nodes
+    |
+    v
+Built-In Node
+    |
+    v
+Configure
+```
+
+We kept the executor count at 2.
+
+### Check Server Resources
+
+We executed the following commands on our Jenkins EC2.
+
+Check RAM:
+
+```bash
+free -h
+```
+
+Our output:
+
+```text
+Mem:  7.6Gi total
+      1.2Gi used
+      6.1Gi free
+      6.4Gi available
+```
+
+Check CPU:
+
+```bash
+nproc
+```
+
+Output:
+
+```text
+2
+```
+
+Based on our available resources, we kept 2 executors.
+
+## 8. What are Jenkins Labels?
+
+Labels are names assigned to Jenkins nodes.
+
+They help Jenkins decide where a job should execute.
+
+Examples:
+
+```text
+linux-build
+java-build
+docker-build
+testing
+```
+
+### Practical: Create a Label
+
+We opened:
+
+```text
+Manage Jenkins
+    |
+    v
+Nodes
+    |
+    v
+Built-In Node
+    |
+    v
+Configure
+```
+
+In the Labels field, we entered:
+
+```text
+linux-build
+```
+
+We saved the configuration.
+
+Now our Built-In Node has the label:
+
+```text
+linux-build
+```
+
+## 9. Assign an Existing Job Using a Label
+
+We used our existing Jenkins job:
+
+```text
+Downstream-Job
+```
+
+Steps:
+
+1. Open Downstream-Job.
+2. Click Configure.
+3. Find General.
+4. Enable Restrict where this project can be run.
+5. Enter the Label Expression:
+
+```text
+linux-build
+```
+
+6. Click Save.
+
+Now Jenkins schedules this job on a node matching `linux-build`.
+
+Since our label belongs to the Built-In Node, the job executes on the existing Jenkins server.
+
+## 10. Verify Job Execution
+
+We clicked Build Now and checked Console Output.
+
+Our output:
+
+```text
+Started by user admin
+
+Running as SYSTEM
+
+Building in workspace
+/var/lib/jenkins/workspace/Downstream-Job
+
+[Downstream-Job] $ /bin/sh -xe
+
+This is Downstream Job
+Triggered by Upstream Job
+
+Finished: SUCCESS
+```
+
+Result:
+
+```text
+Finished: SUCCESS
+```
+
+The job executed successfully.
+
+## 11. What is a Jenkins Workspace?
+
+A workspace is a directory where Jenkins executes a job and stores its working files.
+
+Our workspace:
+
+```bash
+/var/lib/jenkins/workspace/Downstream-Job
+```
+
+To check workspace directories:
+
+```bash
+sudo ls -l /var/lib/jenkins/workspace/
+```
+
+Each Jenkins job generally has its own workspace directory.
+
+## 12. Practical: Run Two Jobs Simultaneously
+
+We used our existing Downstream-Job to understand parallel execution.
+
+In Configure → Build Steps → Execute shell, we temporarily added:
+
+```bash
+echo "Job started"
+
+sleep 60
+
+echo "Job completed"
+```
+
+### Explanation
+
+- `echo` displays a message.
+- `sleep 60` pauses the job for 60 seconds.
+- The second `echo` displays the completion message.
+
+We clicked Build Now twice quickly.
+
+Then we checked:
+
+```text
+Manage Jenkins
+    |
+    v
+Nodes
+    |
+    v
+Built-In Node
+```
+
+Under Build Executor Status, Jenkins displays how many executors are busy.
+
+Example:
+
+```text
+2 of 2 executors busy
+```
+
+This means both executors are running jobs.
+
+After the builds finish:
+
+```text
+0 of 2 executors busy
+```
+
+This means both executors are available again.
+
+## 13. Important Jenkins Concepts
+
+| Concept       | Meaning                                       |
+| ------------- | --------------------------------------------- |
+| Controller    | Manages Jenkins                               |
+| Built-In Node | Controller machine that can also execute jobs |
+| Agent         | Separate machine used to execute jobs         |
+| Executor      | Slot for running a build                      |
+| Label         | Identifies a node                             |
+| Workspace     | Job working directory                         |
+| Build Now     | Manually starts a job                         |
+
+## 14. Important Difference: Built-In Node vs Separate Agent
+
+| Feature               | Built-In Node                   | Separate Agent        |
+| --------------------- | ------------------------------- | --------------------- |
+| Runs on               | Controller machine              | Another machine       |
+| Uses resources        | Controller resources            | Agent resources       |
+| Jenkins installation  | Already installed on Controller | Not required on Agent |
+| Job execution         | Yes                             | Yes                   |
+| Separate machine      | No                              | Yes                   |
+| Workload distribution | Limited                         | Yes                   |
+
+**Remember:** Adding a label to the Built-In Node does not create a separate Agent.
+
+## 15. Best Practices
+
+1. Keep the executor count suitable for available CPU and RAM.
+2. Use labels to control job execution.
+3. Avoid running too many resource-intensive jobs simultaneously.
+4. Monitor CPU, RAM and disk usage.
+5. Use separate Agents for heavy workloads in larger environments.
+6. Avoid running unnecessary builds on the Controller in production.
+7. Keep SSH keys and other credentials secure when connecting Agents.
+8. Use private IP addresses for communication between EC2 instances in the same VPC.
+
+## 16. Practical Commands
+
+Check RAM:
+
+```bash
+free -h
+```
+
+Check CPU cores:
+
+```bash
+nproc
+```
+
+Check Jenkins service:
+
+```bash
+sudo systemctl status jenkins
+```
+
+Restart Jenkins:
+
+```bash
+sudo systemctl restart jenkins
+```
+
+Check workspace:
+
+```bash
+sudo ls -l /var/lib/jenkins/workspace/
+```
+
+## 17. Practical Learning Checklist
+
+- [ ] Understand Jenkins Master (Controller).
+- [ ] Understand Jenkins Built-In Node.
+- [ ] Understand Executors.
+- [ ] Check CPU and RAM resources.
+- [ ] Configure two Executors.
+- [ ] Create a Jenkins Label.
+- [ ] Assign an existing job using a Label.
+- [ ] Execute the job successfully.
+- [ ] Understand Jenkins Workspace.
+- [ ] Learn how two Executors can run jobs simultaneously.
+
+## Conclusion
+
+In this practical, we used our existing Jenkins EC2 instance.
+
+We learned about Jenkins Master (Controller), Built-In Node, Slave (Agent), Executors, Labels and Workspace.
+
+We configured two Executors, created the `linux-build` label, assigned our existing `Downstream-Job` to that label, and tested job execution.
+
+We also learned how Jenkins uses Executors to run multiple jobs simultaneously.
+
+**Our practical was completed using one existing Jenkins EC2 instance. No additional EC2 Agent was created.**
